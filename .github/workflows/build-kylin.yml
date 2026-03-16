@@ -2,80 +2,83 @@ name: Build for Kylin OS (Linux)
 
 on:
   push:
-    branches:
-      - main
-      - master
-  workflow_dispatch: # 允许在 GitHub 网页上手动触发打包
+    branches: [ main, master ]
+  workflow_dispatch:
 
 jobs:
-  build:
-    name: Build Linux/amd64 and Linux/arm64
-    runs-on: ubuntu-latest
-    strategy:
-      matrix:
-        # 分别打包 x86 架构和国产 ARM（飞腾/鲲鹏等）架构
-        platform: [linux/amd64, linux/arm64]
-
+  build-amd64:
+    name: Build Linux/amd64 (x86_64)
+    runs-on: ubuntu-20.04
     steps:
-      # 1. 检出您的代码库
-      - name: Checkout Code
-        uses: actions/checkout@v4
+      - uses: actions/checkout@v4
 
-      # 2. 设置 Go 语言环境
       - name: Setup Go
         uses: actions/setup-go@v5
         with:
-          go-version: '1.21' # 根据您的项目修改 Go 版本
+          go-version: '1.21'
           cache: true
 
-      # 3. 设置 Node.js 环境 (Wails 前端打包必须项)
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
           node-version: 18
 
-      # 4. 安装 Linux 系统的 CGO/图形界面编译依赖
-      - name: Install System Dependencies
+      - name: Install System Dependencies for amd64
         run: |
           sudo apt-get update
-          sudo apt-get install -y \
-            libgtk-3-dev \
-            libwebkit2gtk-4.0-dev \
-            pkg-config \
-            gcc-aarch64-linux-gnu \
-            g++-aarch64-linux-gnu
+          sudo apt-get install -y libgtk-3-dev libwebkit2gtk-4.0-dev build-essential pkg-config
 
-      # 5. 安装 Wails 命令行工具
       - name: Install Wails
         run: go install github.com/wailsapp/wails/v2/cmd/wails@latest
 
-      # 6. 设置环境变量并编译
       - name: Build with Wails
         working-directory: ./gui
-        run: |
-          # 动态获取当前的架构参数
-          PLATFORM=${{ matrix.platform }}
-          
-          if [ "$PLATFORM" == "linux/arm64" ]; then
-            # 交叉编译 ARM 架构时，必须指定交叉编译器
-            export CC=aarch64-linux-gnu-gcc
-            export CXX=aarch64-linux-gnu-g++
-          fi
-          
-          # 执行 Wails 编译，输出目录一般会在 ./gui/build/bin/ 下
-          wails build -platform $PLATFORM
+        run: wails build -platform linux/amd64 -clean
 
-      # 7. 重命名并收集编译好的可执行文件，防止相互覆盖
       - name: Rename Artifact
         working-directory: ./gui/build/bin
-        run: |
-          # 获取编译出的文件名（此处不含 .exe）
-          ARCH=$(echo ${{ matrix.platform }} | cut -d'/' -f2)
-          mv gui "EsSpectre_Kylin_$ARCH"
+        run: mv gui EsSpectre_Kylin_amd64
 
-      # 8. 将编译好的文件上传为产物，供您下载
       - name: Upload Artifact
         uses: actions/upload-artifact@v4
         with:
-          name: EsSpectre-Kylin-${{ matrix.platform }}
-          path: ./gui/build/bin/EsSpectre_Kylin_*
+          name: EsSpectre-Kylin-linux-amd64
+          path: ./gui/build/bin/EsSpectre_Kylin_amd64
+
+  build-arm64:
+    name: Build Linux/arm64 (Kylin ARM)
+    runs-on: ubuntu-20.04
+    steps:
+      - uses: actions/checkout@v4
+
+      # 使用成熟的 QEMU 模拟真实 ARM64 环境，以避免繁琐易错的 CGO 交叉编译头文件解析问题
+      - name: Build on arm64 via QEMU
+        uses: uraimo/run-on-arch-action@v2
+        with:
+          arch: aarch64
+          distro: ubuntu20.04
+          # 在容器内映射当前源码盘
+          githubToken: ${{ github.token }}
+          install: |
+            apt-get update -q -y
+            # 安装 ARM64 原生的 GTK/WebKit 开发依赖和编译链
+            DEBIAN_FRONTEND=noninteractive apt-get install -y curl git wget sudo \
+                libgtk-3-dev libwebkit2gtk-4.0-dev build-essential pkg-config nodejs npm
+            # 安装 ARM64 版本 Go 1.21
+            wget https://go.dev/dl/go1.21.8.linux-arm64.tar.gz
+            tar -C /usr/local -xzf go1.21.8.linux-arm64.tar.gz
+          run: |
+            export PATH=$PATH:/usr/local/go/bin
+            export GOPATH=$HOME/go
+            export PATH=$PATH:$GOPATH/bin
+            # 开始安装 wails 与执行构建 
+            go install github.com/wailsapp/wails/v2/cmd/wails@latest
+            cd gui
+            wails build -platform linux/arm64 -clean
+            mv build/bin/gui build/bin/EsSpectre_Kylin_arm64
+
+      - name: Upload Artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: EsSpectre-Kylin-linux-arm64
+          path: ./gui/build/bin/EsSpectre_Kylin_arm64
