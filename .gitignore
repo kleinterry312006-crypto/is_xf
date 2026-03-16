@@ -1,0 +1,45 @@
+# Binaries
+*.exe
+*.dll
+*.so
+*.a
+*.lib
+*.dylib
+*.cab
+*-test
+*.[0-9].*
+ES-SPECTRE-TUI
+EsSpectre_Kylin_*
+log_*
+*.log
+
+# Wails
+gui/build/bin/
+gui/build/obj/
+gui/frontend/dist/
+gui/frontend/node_modules/
+node_modules/
+
+# Archives
+*.zip
+*.tar
+*.tar.gz
+*.rar
+*.7z
+
+# Compressed or runtime folders
+EsSpectre_V1_Offline/
+release/
+webview2_runtime/
+
+# Temp
+tmp/
+.vscode/
+
+# Ignore old/test built files
+test_*.exe
+main.exe
+es-spectre-tui-linux-*
+
+# Ignore vendor if present
+vendor/

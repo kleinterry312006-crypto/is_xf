@@ -1,0 +1,25 @@
+elasticsearch:
+  ip: ""
+  port: 0
+  index: ""
+  user: ""
+  password: ""
+  time_field: ""
+
+database:
+  type: "mariadb"
+  host: ""
+  port: 0
+  user: ""
+  password: ""
+  dbname: ""
+  schema: ""
+  driver_path: ""
+  dict_table: ""
+  dict_code_col: ""
+  dict_key_col: ""
+  dict_value_col: ""
+
+app:
+  debug: true
+  export_path: "./export"
