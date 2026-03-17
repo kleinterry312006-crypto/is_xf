@@ -8,7 +8,7 @@ on:
 jobs:
   build-amd64:
     name: Build Linux/amd64 (x86_64)
-    runs-on: ubuntu-22.04
+    runs-on: ubuntu-20.04
     steps:
       - uses: actions/checkout@v4
 
@@ -47,7 +47,7 @@ jobs:
 
   build-arm64:
     name: Build Linux/arm64 (Kylin ARM)
-    runs-on: ubuntu-22.04
+    runs-on: ubuntu-20.04
     steps:
       - uses: actions/checkout@v4
 
@@ -70,11 +70,11 @@ jobs:
           sudo sed -i -e 's/^deb http/deb [arch=amd64,i386] http/g' /etc/apt/sources.list
           sudo sed -i -e 's/^deb mirror/deb [arch=amd64,i386] mirror/g' /etc/apt/sources.list
           
-          # 写入官方 ARM64 专属镜像源 (jammy 对应 ubuntu 22.04)
+          # 写入官方 ARM64 专属镜像源 (focal 对应 ubuntu 20.04，保证编译出的二进制依赖很老的 GLIBC)
           sudo tee /etc/apt/sources.list.d/arm64.list <<EOF
-          deb [arch=arm64] http://ports.ubuntu.com/ubuntu-ports jammy main restricted universe multiverse
-          deb [arch=arm64] http://ports.ubuntu.com/ubuntu-ports jammy-updates main restricted universe multiverse
-          deb [arch=arm64] http://ports.ubuntu.com/ubuntu-ports jammy-security main restricted universe multiverse
+          deb [arch=arm64] http://ports.ubuntu.com/ubuntu-ports focal main restricted universe multiverse
+          deb [arch=arm64] http://ports.ubuntu.com/ubuntu-ports focal-updates main restricted universe multiverse
+          deb [arch=arm64] http://ports.ubuntu.com/ubuntu-ports focal-security main restricted universe multiverse
           EOF
           
           sudo apt-get update -y
