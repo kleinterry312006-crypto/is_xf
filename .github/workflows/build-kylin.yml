@@ -83,8 +83,8 @@ jobs:
         run: |
           # 1. 安装能在 x86 上运行但生成 ARM64 代码的 C++ 交叉编译器
           sudo apt-get install -y gcc-aarch64-linux-gnu g++-aarch64-linux-gnu pkg-config
-          # 2. 安装目标架构（ARM64）的图形界面依赖 (Webkit/GTK)
-          sudo DEBIAN_FRONTEND=noninteractive apt-get install -y libgtk-3-dev:arm64 libwebkit2gtk-4.0-dev:arm64
+          # 2. 安装目标架构（ARM64）的图形界面依赖 (Webkit/GTK) 以及 ODBC 数据库驱动依赖
+          sudo DEBIAN_FRONTEND=noninteractive apt-get install -y libgtk-3-dev:arm64 libwebkit2gtk-4.0-dev:arm64 unixodbc-dev:arm64
 
       - name: Install Wails
         run: go install github.com/wailsapp/wails/v2/cmd/wails@latest
