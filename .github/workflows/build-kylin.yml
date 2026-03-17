@@ -62,48 +62,56 @@ jobs:
         with:
           node-version: 18
 
+      - name: Add ARM64 Architecture and Repositories
+        run: |
+          # 开启多架构支持（允许给 x86 机器安装 arm64 的包）
+          sudo dpkg --add-architecture arm64
+          # 将原有的 x86 镜像源限制为只针对 amd64 和 i386，防止冲突
+          sudo sed -i -e 's/^deb http/deb [arch=amd64,i386] http/g' /etc/apt/sources.list
+          sudo sed -i -e 's/^deb mirror/deb [arch=amd64,i386] mirror/g' /etc/apt/sources.list
+          
+          # 写入官方 ARM64 专属镜像源
+          sudo tee /etc/apt/sources.list.d/arm64.list <<EOF
+          deb [arch=arm64] http://ports.ubuntu.com/ubuntu-ports focal main restricted universe multiverse
+          deb [arch=arm64] http://ports.ubuntu.com/ubuntu-ports focal-updates main restricted universe multiverse
+          deb [arch=arm64] http://ports.ubuntu.com/ubuntu-ports focal-security main restricted universe multiverse
+          EOF
+          
+          sudo apt-get update -y
+
+      - name: Install Cross-Compiler and ARM64 Libraries
+        run: |
+          # 1. 安装能在 x86 上运行但生成 ARM64 代码的 C++ 交叉编译器
+          sudo apt-get install -y gcc-aarch64-linux-gnu g++-aarch64-linux-gnu pkg-config
+          # 2. 安装目标架构（ARM64）的图形界面依赖 (Webkit/GTK)
+          sudo DEBIAN_FRONTEND=noninteractive apt-get install -y libgtk-3-dev:arm64 libwebkit2gtk-4.0-dev:arm64
+
+      - name: Install Wails
+        run: go install github.com/wailsapp/wails/v2/cmd/wails@latest
+
       - name: Build Frontend Natively
         working-directory: ./gui/frontend
         run: |
           npm install
           npm run build
 
-      - name: Pre-build Wails CLI & Download Go Modules on Host
+      - name: Build with Wails (Native Cross-Compile to ARM64)
+        working-directory: ./gui
         run: |
-          # 1. 在极速的宿主机 (AMD64) 交叉编译 ARM64 版的 Wails 工具，避免在 QEMU 中龟速编译
-          env GOOS=linux GOARCH=arm64 go build -o ./wails-cli-arm64 github.com/wailsapp/wails/v2/cmd/wails@latest
-          chmod +x ./wails-cli-arm64
-          # 2. 在极速的宿主机把所有 Go 包下载到本地目录缓存，供后续内部容器直接读取，避免 QEMU 龟速 I/O
-          mkdir -p ./WORKSPACE_GOPATH
-          cd gui
-          env GOPATH=$PWD/../WORKSPACE_GOPATH go mod download
-
-      # 使用成熟的 QEMU 模拟真实 ARM64 环境，以避免繁琐易错的 CGO 交叉编译头文件解析问题
-      - name: Build on arm64 via QEMU
-        uses: uraimo/run-on-arch-action@v2
-        with:
-          arch: aarch64
-          distro: ubuntu20.04
-          # 在容器内映射当前源码盘
-          githubToken: ${{ github.token }}
-          install: |
-            apt-get update -q -y
-            # 安装 ARM64 原生的 GTK/WebKit 开发依赖和编译链 (移除 nodejs/npm 以提高速度)
-            DEBIAN_FRONTEND=noninteractive apt-get install -y curl git wget sudo \
-                libgtk-3-dev libwebkit2gtk-4.0-dev build-essential pkg-config
-            # 安装 ARM64 版本 Go 1.21
-            wget https://go.dev/dl/go1.21.8.linux-arm64.tar.gz
-            tar -C /usr/local -xzf go1.21.8.linux-arm64.tar.gz
-          run: |
-            export PATH=$PATH:/usr/local/go/bin
-            # 指向我们在宿主机（Host）准备好的高速缓存目录
-            export GOPATH=$PWD/WORKSPACE_GOPATH
-            export GOCACHE=$PWD/WORKSPACE_GOPATH/build-cache
-            
-            cd gui
-            # 直接运行我们在 Host 编译出来的纯 ARM64 的 wails 可执行文件
-            ../wails-cli-arm64 build -platform linux/arm64 -clean -s -skipbindings
-            mv build/bin/gui build/bin/EsSpectre_Kylin_arm64
+          # 最核心的交叉编译环境变量
+          export CC=aarch64-linux-gnu-gcc
+          export CXX=aarch64-linux-gnu-g++
+          export CGO_ENABLED=1
+          export GOOS=linux
+          export GOARCH=arm64
+          
+          # 告诉 pkg-config 去寻找 arm64 的库文件路径，而不是宿主机的 x86 库
+          export PKG_CONFIG_PATH=/usr/lib/aarch64-linux-gnu/pkgconfig:/usr/share/pkgconfig
+          export PKG_CONFIG_SYSROOT_DIR=/
+          
+          # 开启全速原生编译 (跳过前端因为上面已经打好)
+          wails build -platform linux/arm64 -clean -s -skipbindings
+          mv build/bin/gui build/bin/EsSpectre_Kylin_arm64
 
       - name: Upload Artifact
         uses: actions/upload-artifact@v4
