@@ -1,0 +1,84 @@
+name: Build for Kylin OS (Linux)
+
+on:
+  push:
+    branches: [ main, master ]
+  workflow_dispatch:
+
+jobs:
+  build-amd64:
+    name: Build Linux/amd64 (x86_64)
+    runs-on: ubuntu-20.04
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: '1.21'
+          cache: true
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 18
+
+      - name: Install System Dependencies for amd64
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libgtk-3-dev libwebkit2gtk-4.0-dev build-essential pkg-config
+
+      - name: Install Wails
+        run: go install github.com/wailsapp/wails/v2/cmd/wails@latest
+
+      - name: Build with Wails
+        working-directory: ./gui
+        run: wails build -platform linux/amd64 -clean
+
+      - name: Rename Artifact
+        working-directory: ./gui/build/bin
+        run: mv gui EsSpectre_Kylin_amd64
+
+      - name: Upload Artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: EsSpectre-Kylin-linux-amd64
+          path: ./gui/build/bin/EsSpectre_Kylin_amd64
+
+  build-arm64:
+    name: Build Linux/arm64 (Kylin ARM)
+    runs-on: ubuntu-20.04
+    steps:
+      - uses: actions/checkout@v4
+
+      # 使用成熟的 QEMU 模拟真实 ARM64 环境，以避免繁琐易错的 CGO 交叉编译头文件解析问题
+      - name: Build on arm64 via QEMU
+        uses: uraimo/run-on-arch-action@v2
+        with:
+          arch: aarch64
+          distro: ubuntu20.04
+          # 在容器内映射当前源码盘
+          githubToken: ${{ github.token }}
+          install: |
+            apt-get update -q -y
+            # 安装 ARM64 原生的 GTK/WebKit 开发依赖和编译链
+            DEBIAN_FRONTEND=noninteractive apt-get install -y curl git wget sudo \
+                libgtk-3-dev libwebkit2gtk-4.0-dev build-essential pkg-config nodejs npm
+            # 安装 ARM64 版本 Go 1.21
+            wget https://go.dev/dl/go1.21.8.linux-arm64.tar.gz
+            tar -C /usr/local -xzf go1.21.8.linux-arm64.tar.gz
+          run: |
+            export PATH=$PATH:/usr/local/go/bin
+            export GOPATH=$HOME/go
+            export PATH=$PATH:$GOPATH/bin
+            # 开始安装 wails 与执行构建 
+            go install github.com/wailsapp/wails/v2/cmd/wails@latest
+            cd gui
+            wails build -platform linux/arm64 -clean
+            mv build/bin/gui build/bin/EsSpectre_Kylin_arm64
+
+      - name: Upload Artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: EsSpectre-Kylin-linux-arm64
+          path: ./gui/build/bin/EsSpectre_Kylin_arm64
