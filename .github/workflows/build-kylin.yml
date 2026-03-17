@@ -8,7 +8,7 @@ on:
 jobs:
   build-amd64:
     name: Build Linux/amd64 (x86_64)
-    runs-on: ubuntu-20.04
+    runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
 
@@ -47,7 +47,7 @@ jobs:
 
   build-arm64:
     name: Build Linux/arm64 (Kylin ARM)
-    runs-on: ubuntu-20.04
+    runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
 
