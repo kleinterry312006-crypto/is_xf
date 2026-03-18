@@ -21,15 +21,22 @@ jobs:
             
       - uses: actions/checkout@v4
       
-      - name: Setup Go
+      # Step 1: Install Wails using Go 1.23 (Requirement for Wails CLI v2.11)
+      - name: Setup Go (for Wails CLI)
+        uses: actions/setup-go@v5
+        with:
+          go-version: '1.23'
+          
+      - name: Install Wails
+        run: go install github.com/wailsapp/wails/v2/cmd/wails@latest
+        
+      # Step 2: Switch to Go 1.21 for App Build (for 4.4 Kernel Compatibility)
+      - name: Setup Go (for App Build)
         uses: actions/setup-go@v5
         with:
           go-version: '1.21'
           cache: true
           
-      - name: Install Wails
-        run: go install github.com/wailsapp/wails/v2/cmd/wails@latest
-        
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
@@ -38,7 +45,7 @@ jobs:
       - name: Build with Wails
         run: |
           export PATH=$PATH:$(go env GOPATH)/bin
-          # 动态修正 go.mod 版本，防止编译器因为版本过高报错，同时强制启用符号剥离以兼容旧内核
+          # 动态将 go.mod 版本从 1.23 降至 1.21，防止编译器校验报错
           sed -i 's/go 1.23/go 1.21/g' gui/go.mod
           cd gui
           wails build -platform linux/amd64 -clean -ldflags "-s -w"
@@ -75,15 +82,20 @@ jobs:
             
       - uses: actions/checkout@v4
       
-      - name: Setup Go
+      - name: Setup Go (for Wails CLI)
+        uses: actions/setup-go@v5
+        with:
+          go-version: '1.23'
+          
+      - name: Install Wails
+        run: go install github.com/wailsapp/wails/v2/cmd/wails@latest
+        
+      - name: Setup Go (for App Build)
         uses: actions/setup-go@v5
         with:
           go-version: '1.21'
           cache: true
           
-      - name: Install Wails
-        run: go install github.com/wailsapp/wails/v2/cmd/wails@latest
-        
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
@@ -105,7 +117,6 @@ jobs:
           export GOARCH=arm64
           export PKG_CONFIG_PATH=/usr/lib/aarch64-linux-gnu/pkgconfig:/usr/share/pkgconfig
           export PKG_CONFIG_SYSROOT_DIR=/
-          # 针对 4.4 内核，剥离符号并强行将 go.mod 设为 1.21 以通过编译
           sed -i 's/go 1.23/go 1.21/g' gui/go.mod
           cd gui
           wails build -platform linux/arm64 -clean -s -skipbindings -ldflags "-s -w"
@@ -120,35 +131,40 @@ jobs:
   build-mips64el:
     name: Build Linux/mips64el (Kylin Loongson)
     runs-on: ubuntu-latest
+    # 使用 Debian 10 Buster 容器，完美契合 mips64el 依赖链，避免 Ubuntu 混合架构冲突
     container:
-      image: ubuntu:20.04
+      image: debian:10
     steps:
-      - name: Install Cross-Build Dependencies
+      - name: Setup Archive Sources
         run: |
-          apt-get update
-          DEBIAN_FRONTEND=noninteractive apt-get install -y curl git ca-certificates dpkg-dev tar gzip gnupg2
-          dpkg --add-architecture mips64el
-          sed -i 's/^deb /deb [arch=amd64] /g' /etc/apt/sources.list
-          echo "deb [arch=mips64el] http://archive.debian.org/debian buster main" > /etc/apt/sources.list.d/mips64el.list
-          echo "deb [arch=mips64el] http://archive.debian.org/debian buster-updates main" >> /etc/apt/sources.list.d/mips64el.list
-          echo "deb [arch=mips64el] http://archive.debian.org/debian-security buster/updates main" >> /etc/apt/sources.list.d/mips64el.list
-          # Debian Buster is archived; bypass all security/signature checks to get the core libraries
-          apt-get update -o Acquire::Check-Valid-Until=false -o Acquire::AllowInsecureRepositories=true || true
+          echo "deb http://archive.debian.org/debian buster main" > /etc/apt/sources.list
+          echo "deb http://archive.debian.org/debian-security buster/updates main" >> /etc/apt/sources.list
+          echo "deb http://archive.debian.org/debian buster-updates main" >> /etc/apt/sources.list
+          apt-get update -o Acquire::Check-Valid-Until=false || true
+          
+      - name: Install Dependencies
+        run: |
           DEBIAN_FRONTEND=noninteractive apt-get install -y --allow-unauthenticated \
-            gcc-mips64el-linux-gnuabi64 g++-mips64el-linux-gnuabi64 pkg-config \
+            curl git ca-certificates tar gzip gnupg2 build-essential pkg-config \
+            gcc-mips64el-linux-gnuabi64 g++-mips64el-linux-gnuabi64 \
             libgtk-3-dev:mips64el libwebkit2gtk-4.0-dev:mips64el unixodbc-dev:mips64el
             
       - uses: actions/checkout@v4
       
-      - name: Setup Go
+      - name: Setup Go (for Wails CLI)
+        uses: actions/setup-go@v5
+        with:
+          go-version: '1.23'
+          
+      - name: Install Wails
+        run: go install github.com/wailsapp/wails/v2/cmd/wails@latest
+        
+      - name: Setup Go (for App Build)
         uses: actions/setup-go@v5
         with:
           go-version: '1.21'
           cache: true
           
-      - name: Install Wails
-        run: go install github.com/wailsapp/wails/v2/cmd/wails@latest
-        
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
@@ -170,7 +186,6 @@ jobs:
           export GOARCH=mips64le
           export PKG_CONFIG_PATH=/usr/lib/mips64el-linux-gnu/pkgconfig:/usr/share/pkgconfig
           export PKG_CONFIG_SYSROOT_DIR=/
-          # 降级 go.mod 版本以匹配编译环境
           sed -i 's/go 1.23/go 1.21/g' gui/go.mod
           cd gui
           wails build -platform linux/mips64le -clean -s -skipbindings -ldflags "-s -w"
