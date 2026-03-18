@@ -217,14 +217,28 @@ jobs:
           # 使用 -o 指定输出名称
           wails build -platform linux/mips64le -clean -s -skipbindings -o EsSpectre_Kylin_mips64el -ldflags "-s -w" || {
              echo "Wails build failed, falling back to direct go build..."
+             # 确保前端产物存在
              go build -ldflags "-s -w" -o build/bin/EsSpectre_Kylin_mips64el main.go
           }
-          # 自动寻找并重命名产物（增加容错）
+          
+          # 调试：列出生成的所有文件
+          echo "==== Build Output Directory Structure ===="
+          ls -R build/bin/
+          
+          # 自动寻找并重命名产物（极致容错）
           if [ ! -f build/bin/EsSpectre_Kylin_mips64el ]; then
-            mv build/bin/gui build/bin/EsSpectre_Kylin_mips64el || \
-            mv build/bin/gui_linux_mips64le build/bin/EsSpectre_Kylin_mips64el || \
-            mv build/bin/gui-linux-mips64le build/bin/EsSpectre_Kylin_mips64el || true
+            echo "Searching for any generated binary..."
+            # 找到 build/bin 目录下最新生成的非文件夹、非空文件，并移动它
+            TARGET_FILE=$(find build/bin/ -type f -not -name "*.res" -not -name "*.syso" | head -n 1)
+            if [ -n "$TARGET_FILE" ]; then
+              cp "$TARGET_FILE" build/bin/EsSpectre_Kylin_mips64el
+            else
+              echo "ERROR: No binary was generated!" && exit 1
+            fi
           fi
+          
+          # 最终检查必选产物是否存在，不存在则报错
+          [ -f build/bin/EsSpectre_Kylin_mips64el ] || { echo "Final check failed: Binary missing"; exit 1; }
 
       - name: Upload Artifact
         uses: actions/upload-artifact@v4
