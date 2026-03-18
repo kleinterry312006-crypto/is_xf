@@ -58,6 +58,7 @@ jobs:
           # 动态将 go.mod 版本从 1.23/1.22 统一，防止编译器校验报错
           sed -i 's/go 1.23/go 1.22/g' gui/go.mod
           cd gui
+          go mod tidy
           wails build -platform linux/amd64 -clean -s -skipbindings -o EsSpectre_Kylin_amd64 -ldflags "-s -w"
           
       - name: Upload Artifact
@@ -126,6 +127,7 @@ jobs:
           export PKG_CONFIG_SYSROOT_DIR=/
           sed -i 's/go 1.23/go 1.22/g' gui/go.mod
           cd gui
+          go mod tidy
           wails build -platform linux/arm64 -clean -s -skipbindings -o EsSpectre_Kylin_arm64 -ldflags "-s -w"
           # 确保产物在正确位置
           if [ -f build/bin/gui ]; then mv build/bin/gui build/bin/EsSpectre_Kylin_arm64; fi
@@ -220,6 +222,7 @@ jobs:
           # 修正版本并进入目录
           sed -i 's/go 1.23/go 1.22/g' gui/go.mod
           cd gui
+          go mod tidy
           mkdir -p build/bin
           
           echo "🚀 Wails does not support MIPS natively, using Go native build..."
