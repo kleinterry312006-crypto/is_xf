@@ -54,11 +54,7 @@ jobs:
           # 动态将 go.mod 版本从 1.23 降至 1.21，防止编译器校验报错
           sed -i 's/go 1.23/go 1.21/g' gui/go.mod
           cd gui
-          wails build -platform linux/amd64 -clean -s -skipbindings -ldflags "-s -w"
-          
-      - name: Rename Artifact
-        run: |
-          mv gui/build/bin/gui gui/build/bin/EsSpectre_Kylin_amd64
+          wails build -platform linux/amd64 -clean -s -skipbindings -o EsSpectre_Kylin_amd64 -ldflags "-s -w"
           
       - name: Upload Artifact
         uses: actions/upload-artifact@v4
@@ -126,8 +122,10 @@ jobs:
           export PKG_CONFIG_SYSROOT_DIR=/
           sed -i 's/go 1.23/go 1.21/g' gui/go.mod
           cd gui
-          wails build -platform linux/arm64 -clean -s -skipbindings -ldflags "-s -w"
-          mv build/bin/gui build/bin/EsSpectre_Kylin_arm64 || cp build/bin/gui_linux_arm64 build/bin/EsSpectre_Kylin_arm64 || true
+          wails build -platform linux/arm64 -clean -s -skipbindings -o EsSpectre_Kylin_arm64 -ldflags "-s -w"
+          # 确保产物在正确位置
+          if [ -f build/bin/gui ]; then mv build/bin/gui build/bin/EsSpectre_Kylin_arm64; fi
+          if [ -f build/bin/gui_linux_arm64 ]; then mv build/bin/gui_linux_arm64 build/bin/EsSpectre_Kylin_arm64; fi
 
       - name: Upload Artifact
         uses: actions/upload-artifact@v4
@@ -140,21 +138,15 @@ jobs:
     runs-on: ubuntu-latest
     # 使用 Debian 10 Buster 容器，完美契合 mips64el 依赖链，避免 Ubuntu 混合架构冲突
     container:
-      image: debian:10
+      image: debian:bullseye
     steps:
-      - name: Setup Multi-arch and Archive Sources
+      - name: Setup Multi-arch and Dependencies
         run: |
           dpkg --add-architecture mips64el
-          echo "deb http://archive.debian.org/debian buster main" > /etc/apt/sources.list
-          echo "deb http://archive.debian.org/debian-security buster/updates main" >> /etc/apt/sources.list
-          echo "deb http://archive.debian.org/debian buster-updates main" >> /etc/apt/sources.list
-          apt-get update -o Acquire::Check-Valid-Until=false || true
-          
-      - name: Install Dependencies
-        run: |
-          DEBIAN_FRONTEND=noninteractive apt-get install -y --allow-unauthenticated \
+          apt-get update
+          DEBIAN_FRONTEND=noninteractive apt-get install -y \
             curl git ca-certificates tar gzip gnupg2 build-essential pkg-config \
-            gcc-mips64el-linux-gnuabi64 g++-mips64el-linux-gnuabi64 \
+            crossbuild-essential-mips64el \
             libgtk-3-dev:mips64el libwebkit2gtk-4.0-dev:mips64el unixodbc-dev:mips64el
             
       - uses: actions/checkout@v4
@@ -197,12 +189,13 @@ jobs:
           export PKG_CONFIG_SYSROOT_DIR=/
           sed -i 's/go 1.23/go 1.21/g' gui/go.mod
           cd gui
-          # 如果 wails 不支持 linux/mips64le，尝试直接使用 go build
-          wails build -platform linux/mips64le -clean -s -skipbindings -ldflags "-s -w" || {
+          # 使用 -o 指定输出名称
+          wails build -platform linux/mips64le -clean -s -skipbindings -o EsSpectre_Kylin_mips64el -ldflags "-s -w" || {
              echo "Wails build failed, falling back to direct go build..."
              go build -ldflags "-s -w" -o build/bin/EsSpectre_Kylin_mips64el main.go
           }
           if [ -f build/bin/gui ]; then mv build/bin/gui build/bin/EsSpectre_Kylin_mips64el; fi
+          if [ -f build/bin/gui_linux_mips64le ]; then mv build/bin/gui_linux_mips64le build/bin/EsSpectre_Kylin_mips64el; fi
 
       - name: Upload Artifact
         uses: actions/upload-artifact@v4
