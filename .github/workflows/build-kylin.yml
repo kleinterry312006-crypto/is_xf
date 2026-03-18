@@ -135,8 +135,9 @@ jobs:
     container:
       image: debian:10
     steps:
-      - name: Setup Archive Sources
+      - name: Setup Multi-arch and Archive Sources
         run: |
+          dpkg --add-architecture mips64el
           echo "deb http://archive.debian.org/debian buster main" > /etc/apt/sources.list
           echo "deb http://archive.debian.org/debian-security buster/updates main" >> /etc/apt/sources.list
           echo "deb http://archive.debian.org/debian buster-updates main" >> /etc/apt/sources.list
