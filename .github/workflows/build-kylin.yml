@@ -136,6 +136,9 @@ jobs:
           dpkg --add-architecture mips64el
           sed -i 's/^deb /deb [arch=amd64] /g' /etc/apt/sources.list
           echo "deb [arch=mips64el] http://archive.debian.org/debian buster main" > /etc/apt/sources.list.d/mips64el.list
+          echo "deb [arch=mips64el] http://archive.debian.org/debian buster-updates main" >> /etc/apt/sources.list.d/mips64el.list
+          echo "deb [arch=mips64el] http://archive.debian.org/debian-security buster/updates main" >> /etc/apt/sources.list.d/mips64el.list
+          # Debian Buster is archived; bypass all security/signature checks to get the core libraries
           apt-get update -o Acquire::Check-Valid-Until=false -o Acquire::AllowInsecureRepositories=true || true
           DEBIAN_FRONTEND=noninteractive apt-get install -y --allow-unauthenticated \
             gcc-mips64el-linux-gnuabi64 g++-mips64el-linux-gnuabi64 pkg-config \
