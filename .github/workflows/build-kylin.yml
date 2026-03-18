@@ -21,20 +21,15 @@ jobs:
             
       - uses: actions/checkout@v4
       
-      - name: Setup Go (Host for Wails CLI)
+      - name: Setup Go
         uses: actions/setup-go@v5
         with:
-          go-version: '1.23' # 使用最新版 Go 来安装 Wails 命令行工具，解决工具本身的 Go 版本要求
+          go-version: '1.21'
+          cache: true
           
       - name: Install Wails
         run: go install github.com/wailsapp/wails/v2/cmd/wails@latest
         
-      - name: Setup Go (Target for App Build)
-        uses: actions/setup-go@v5
-        with:
-          go-version: '1.20' # 实际编译项目时使用 1.20，以保证对 4.4 旧内核的 ELF 兼容性
-          cache: true
-          
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
@@ -43,6 +38,8 @@ jobs:
       - name: Build with Wails
         run: |
           export PATH=$PATH:$(go env GOPATH)/bin
+          # 动态修正 go.mod 版本，防止编译器因为版本过高报错，同时强制启用符号剥离以兼容旧内核
+          sed -i 's/go 1.23/go 1.21/g' gui/go.mod
           cd gui
           wails build -platform linux/amd64 -clean -ldflags "-s -w"
           
@@ -78,20 +75,15 @@ jobs:
             
       - uses: actions/checkout@v4
       
-      - name: Setup Go (Host for Wails CLI)
+      - name: Setup Go
         uses: actions/setup-go@v5
         with:
-          go-version: '1.23'
+          go-version: '1.21'
+          cache: true
           
       - name: Install Wails
         run: go install github.com/wailsapp/wails/v2/cmd/wails@latest
         
-      - name: Setup Go (Target for App Build)
-        uses: actions/setup-go@v5
-        with:
-          go-version: '1.20'
-          cache: true
-          
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
@@ -113,6 +105,8 @@ jobs:
           export GOARCH=arm64
           export PKG_CONFIG_PATH=/usr/lib/aarch64-linux-gnu/pkgconfig:/usr/share/pkgconfig
           export PKG_CONFIG_SYSROOT_DIR=/
+          # 针对 4.4 内核，剥离符号并强行将 go.mod 设为 1.21 以通过编译
+          sed -i 's/go 1.23/go 1.21/g' gui/go.mod
           cd gui
           wails build -platform linux/arm64 -clean -s -skipbindings -ldflags "-s -w"
           mv build/bin/gui build/bin/EsSpectre_Kylin_arm64 || true
@@ -146,20 +140,15 @@ jobs:
             
       - uses: actions/checkout@v4
       
-      - name: Setup Go (Host for Wails CLI)
+      - name: Setup Go
         uses: actions/setup-go@v5
         with:
-          go-version: '1.23'
+          go-version: '1.21'
+          cache: true
           
       - name: Install Wails
         run: go install github.com/wailsapp/wails/v2/cmd/wails@latest
         
-      - name: Setup Go (Target for App Build)
-        uses: actions/setup-go@v5
-        with:
-          go-version: '1.20'
-          cache: true
-          
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
@@ -181,6 +170,8 @@ jobs:
           export GOARCH=mips64le
           export PKG_CONFIG_PATH=/usr/lib/mips64el-linux-gnu/pkgconfig:/usr/share/pkgconfig
           export PKG_CONFIG_SYSROOT_DIR=/
+          # 降级 go.mod 版本以匹配编译环境
+          sed -i 's/go 1.23/go 1.21/g' gui/go.mod
           cd gui
           wails build -platform linux/mips64le -clean -s -skipbindings -ldflags "-s -w"
           mv build/bin/gui build/bin/EsSpectre_Kylin_mips64el || true
