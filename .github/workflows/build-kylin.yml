@@ -216,33 +216,17 @@ jobs:
           export PKG_CONFIG_PATH=/usr/lib/mips64el-linux-gnuabi64/pkgconfig:/usr/share/pkgconfig
           export PKG_CONFIG_LIBDIR=/usr/lib/mips64el-linux-gnuabi64/pkgconfig
           export PKG_CONFIG_SYSROOT_DIR=/
+          
+          # 修正版本并进入目录
           sed -i 's/go 1.23/go 1.21/g' gui/go.mod
           cd gui
-          # 使用 -o 指定输出名称
-          wails build -platform linux/mips64le -clean -s -skipbindings -o EsSpectre_Kylin_mips64el -ldflags "-s -w" || {
-             echo "Wails build failed, falling back to direct go build..."
-             # 确保前端产物存在
-             go build -ldflags "-s -w" -o build/bin/EsSpectre_Kylin_mips64el main.go
-          }
+          mkdir -p build/bin
           
-          # 调试：列出生成的所有文件
-          echo "==== Build Output Directory Structure ===="
-          ls -R build/bin/
+          echo "🚀 Wails does not support MIPS natively, using Go native build..."
+          # 直接使用 Go 编译，Wails 2.0 默认支持 embed
+          go build -ldflags "-s -w" -tags production -o build/bin/EsSpectre_Kylin_mips64el .
           
-          # 自动寻找并重命名产物（极致容错）
-          if [ ! -f build/bin/EsSpectre_Kylin_mips64el ]; then
-            echo "Searching for any generated binary..."
-            # 找到 build/bin 目录下所有的常规文件，排除资源和系统文件
-            TARGET_FILE=$(find build/bin/ -maxdepth 2 -type f -not -name "*.res" -not -name "*.syso" | grep -v "EsSpectre_Kylin_mips64el" | head -n 1)
-            if [ -n "$TARGET_FILE" ]; then
-              echo "Moving discovered binary: $TARGET_FILE"
-              cp "$TARGET_FILE" build/bin/EsSpectre_Kylin_mips64el
-            else
-              echo "ERROR: No binary was generated!" && exit 1
-            fi
-          fi
-          
-          # 最终检查产物，确认其权限和路径
+          # 验证结果
           ls -l build/bin/EsSpectre_Kylin_mips64el
 
       - name: Upload Artifact
