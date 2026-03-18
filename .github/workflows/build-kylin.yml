@@ -21,10 +21,18 @@ jobs:
             
       - uses: actions/checkout@v4
       
-      - name: Setup Go
+      - name: Setup Go (Host for Wails CLI)
         uses: actions/setup-go@v5
         with:
-          go-version: '1.20'
+          go-version: '1.23' # 使用最新版 Go 来安装 Wails 命令行工具，解决工具本身的 Go 版本要求
+          
+      - name: Install Wails
+        run: go install github.com/wailsapp/wails/v2/cmd/wails@latest
+        
+      - name: Setup Go (Target for App Build)
+        uses: actions/setup-go@v5
+        with:
+          go-version: '1.20' # 实际编译项目时使用 1.20，以保证对 4.4 旧内核的 ELF 兼容性
           cache: true
           
       - name: Setup Node.js
@@ -34,10 +42,8 @@ jobs:
           
       - name: Build with Wails
         run: |
-          go install github.com/wailsapp/wails/v2/cmd/wails@latest
           export PATH=$PATH:$(go env GOPATH)/bin
           cd gui
-          # 使用 -ldflags "-s -w" 压缩体积并移除可能导致旧内核无法映射的符号表
           wails build -platform linux/amd64 -clean -ldflags "-s -w"
           
       - name: Rename Artifact
@@ -72,7 +78,15 @@ jobs:
             
       - uses: actions/checkout@v4
       
-      - name: Setup Go
+      - name: Setup Go (Host for Wails CLI)
+        uses: actions/setup-go@v5
+        with:
+          go-version: '1.23'
+          
+      - name: Install Wails
+        run: go install github.com/wailsapp/wails/v2/cmd/wails@latest
+        
+      - name: Setup Go (Target for App Build)
         uses: actions/setup-go@v5
         with:
           go-version: '1.20'
@@ -91,7 +105,6 @@ jobs:
           
       - name: Build with Wails (Native Cross-Compile to ARM64)
         run: |
-          go install github.com/wailsapp/wails/v2/cmd/wails@latest
           export PATH=$PATH:$(go env GOPATH)/bin
           export CC=aarch64-linux-gnu-gcc
           export CXX=aarch64-linux-gnu-g++
@@ -101,7 +114,6 @@ jobs:
           export PKG_CONFIG_PATH=/usr/lib/aarch64-linux-gnu/pkgconfig:/usr/share/pkgconfig
           export PKG_CONFIG_SYSROOT_DIR=/
           cd gui
-          # 针对 4.4 等旧内核，强制降低 Go 版本并精简 ELF 头部，启用符号压缩
           wails build -platform linux/arm64 -clean -s -skipbindings -ldflags "-s -w"
           mv build/bin/gui build/bin/EsSpectre_Kylin_arm64 || true
 
@@ -124,7 +136,6 @@ jobs:
           dpkg --add-architecture mips64el
           sed -i 's/^deb /deb [arch=amd64] /g' /etc/apt/sources.list
           echo "deb [arch=mips64el] http://archive.debian.org/debian buster main" > /etc/apt/sources.list.d/mips64el.list
-          # Debian Buster is archived; bypass all security/signature checks to get the libraries
           apt-get update -o Acquire::Check-Valid-Until=false -o Acquire::AllowInsecureRepositories=true || true
           DEBIAN_FRONTEND=noninteractive apt-get install -y --allow-unauthenticated \
             gcc-mips64el-linux-gnuabi64 g++-mips64el-linux-gnuabi64 pkg-config \
@@ -132,7 +143,15 @@ jobs:
             
       - uses: actions/checkout@v4
       
-      - name: Setup Go
+      - name: Setup Go (Host for Wails CLI)
+        uses: actions/setup-go@v5
+        with:
+          go-version: '1.23'
+          
+      - name: Install Wails
+        run: go install github.com/wailsapp/wails/v2/cmd/wails@latest
+        
+      - name: Setup Go (Target for App Build)
         uses: actions/setup-go@v5
         with:
           go-version: '1.20'
@@ -151,7 +170,6 @@ jobs:
           
       - name: Build with Wails (Native Cross-Compile to MIPS64EL)
         run: |
-          go install github.com/wailsapp/wails/v2/cmd/wails@latest
           export PATH=$PATH:$(go env GOPATH)/bin
           export CC=mips64el-linux-gnuabi64-gcc
           export CXX=mips64el-linux-gnuabi64-g++
