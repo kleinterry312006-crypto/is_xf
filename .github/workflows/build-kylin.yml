@@ -142,24 +142,30 @@ jobs:
       - name: Setup Multi-arch and Dependencies
         run: |
           set -ex
-          # 彻底清理并强制指定架构配置
+          # 清理旧的索引和源
           rm -rf /var/lib/apt/lists/*
           dpkg --add-architecture mips64el
-          echo 'Apt::Architectures {"amd64"; "mips64el";};' > /etc/apt/apt.conf.d/99arch
           
-          # 使用官方主镜像源，确保架构完整
+          # 强制双架构配置（注意大小写和语法）
+          mkdir -p /etc/apt/apt.conf.d/
+          echo 'APT::Architectures { "amd64"; "mips64el"; };' > /etc/apt/apt.conf.d/99arch
+          
+          # 纠正源地址：security 仓库路径与主仓库不同
           cat <<EOF > /etc/apt/sources.list
-          deb http://ftp.debian.org/debian bullseye main contrib non-free
-          deb http://ftp.debian.org/debian-security bullseye-security main contrib non-free
-          deb http://ftp.debian.org/debian bullseye-updates main contrib non-free
+          deb http://deb.debian.org/debian bullseye main contrib non-free
+          deb http://deb.debian.org/debian bullseye-updates main contrib non-free
+          deb http://security.debian.org/debian-security bullseye-security main contrib non-free
           EOF
           
-          # 更新索引
+          # 更新索引并验证
           apt-get update
           
-          # 验证架构和索引
+          # 打印架构列表确认
+          dpkg --print-architecture
           dpkg --print-foreign-architectures
-          apt-cache policy libgtk-3-dev:mips64el || { echo "ERROR: mips64el packages not found in cache"; exit 1; }
+          
+          # 检查缓存中是否有目标包
+          apt-cache policy libgtk-3-dev:mips64el || { echo "ERROR: mips64el package index failed to fetch"; exit 1; }
           
           DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends \
             curl git ca-certificates tar gzip gnupg2 build-essential pkg-config \
