@@ -24,7 +24,7 @@ jobs:
       - name: Setup Go
         uses: actions/setup-go@v5
         with:
-          go-version: '1.21'
+          go-version: '1.20'
           cache: true
           
       - name: Setup Node.js
@@ -37,7 +37,8 @@ jobs:
           go install github.com/wailsapp/wails/v2/cmd/wails@latest
           export PATH=$PATH:$(go env GOPATH)/bin
           cd gui
-          wails build -platform linux/amd64 -clean
+          # 使用 -ldflags "-s -w" 压缩体积并移除可能导致旧内核无法映射的符号表
+          wails build -platform linux/amd64 -clean -ldflags "-s -w"
           
       - name: Rename Artifact
         run: |
@@ -74,7 +75,7 @@ jobs:
       - name: Setup Go
         uses: actions/setup-go@v5
         with:
-          go-version: '1.21'
+          go-version: '1.20'
           cache: true
           
       - name: Setup Node.js
@@ -100,7 +101,8 @@ jobs:
           export PKG_CONFIG_PATH=/usr/lib/aarch64-linux-gnu/pkgconfig:/usr/share/pkgconfig
           export PKG_CONFIG_SYSROOT_DIR=/
           cd gui
-          wails build -platform linux/arm64 -clean -s -skipbindings
+          # 针对 4.4 等旧内核，强制降低 Go 版本并精简 ELF 头部，启用符号压缩
+          wails build -platform linux/arm64 -clean -s -skipbindings -ldflags "-s -w"
           mv build/bin/gui build/bin/EsSpectre_Kylin_arm64 || true
 
       - name: Upload Artifact
@@ -122,7 +124,6 @@ jobs:
           dpkg --add-architecture mips64el
           sed -i 's/^deb /deb [arch=amd64] /g' /etc/apt/sources.list
           echo "deb [arch=mips64el] http://archive.debian.org/debian buster main" > /etc/apt/sources.list.d/mips64el.list
-          # Debian Buster is archived; allow expired keys and skip validity check for these old repos
           apt-get update -o Acquire::Check-Valid-Until=false || true
           DEBIAN_FRONTEND=noninteractive apt-get install -y \
             gcc-mips64el-linux-gnuabi64 g++-mips64el-linux-gnuabi64 pkg-config \
@@ -133,7 +134,7 @@ jobs:
       - name: Setup Go
         uses: actions/setup-go@v5
         with:
-          go-version: '1.21'
+          go-version: '1.20'
           cache: true
           
       - name: Setup Node.js
@@ -159,7 +160,7 @@ jobs:
           export PKG_CONFIG_PATH=/usr/lib/mips64el-linux-gnu/pkgconfig:/usr/share/pkgconfig
           export PKG_CONFIG_SYSROOT_DIR=/
           cd gui
-          wails build -platform linux/mips64le -clean -s -skipbindings
+          wails build -platform linux/mips64le -clean -s -skipbindings -ldflags "-s -w"
           mv build/bin/gui build/bin/EsSpectre_Kylin_mips64el || true
 
       - name: Upload Artifact
