@@ -136,18 +136,30 @@ jobs:
   build-mips64el:
     name: Build Linux/mips64el (Kylin Loongson)
     runs-on: ubuntu-latest
-    # 使用 Debian 10 Buster 容器，完美契合 mips64el 依赖链，避免 Ubuntu 混合架构冲突
     container:
       image: debian:bullseye
     steps:
       - name: Setup Multi-arch and Dependencies
         run: |
+          # 彻底清理可能存在的架构限制和缓存
+          rm -rf /var/lib/apt/lists/*
+          rm -rf /etc/apt/sources.list.d/*
+          
+          # 添加架构
           dpkg --add-architecture mips64el
-          # 强制重写 sources.list 以移除任何可能存在的 [arch=amd64] 限制
-          echo "deb http://deb.debian.org/debian bullseye main contrib non-free" > /etc/apt/sources.list
-          echo "deb http://deb.debian.org/debian-security bullseye-security main contrib non-free" >> /etc/apt/sources.list
-          echo "deb http://deb.debian.org/debian bullseye-updates main contrib non-free" >> /etc/apt/sources.list
+          
+          # 显式指定双架构源，强制 apt 必须拉取 mips64el 的索引
+          cat <<EOF > /etc/apt/sources.list
+          deb [arch=amd64,mips64el] http://deb.debian.org/debian bullseye main contrib non-free
+          deb [arch=amd64,mips64el] http://deb.debian.org/debian-security bullseye-security main contrib non-free
+          deb [arch=amd64,mips64el] http://deb.debian.org/debian bullseye-updates main contrib non-free
+          EOF
+          
           apt-get update
+          
+          # 调试列出索引文件，确保 mips64el 已经存在
+          ls -R /var/lib/apt/lists/ | grep mips64el || { echo "CRITICAL: mips64el indices still missing!"; exit 1; }
+          
           DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends \
             curl git ca-certificates tar gzip gnupg2 build-essential pkg-config \
             crossbuild-essential-mips64el \
