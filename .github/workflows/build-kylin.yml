@@ -137,7 +137,7 @@ jobs:
     name: Build Linux/mips64el (Kylin Loongson)
     runs-on: ubuntu-latest
     container:
-      image: debian:bullseye
+      image: debian:bookworm
     steps:
       - name: Setup Multi-arch and Dependencies
         run: |
@@ -152,28 +152,27 @@ jobs:
           dpkg --add-architecture mips64el
           echo 'APT::Architectures { "amd64"; "mips64el"; };' > /etc/apt/apt.conf.d/01multiarch
           
-          # 3. 构造完美的、不带限制的 sources.list
+          # 3. 构造 Bookworm 版本的、不带限制的 sources.list
           cat <<EOF > /etc/apt/sources.list
-          deb [arch=amd64,mips64el] http://deb.debian.org/debian bullseye main contrib non-free
-          deb [arch=amd64,mips64el] http://deb.debian.org/debian bullseye-updates main contrib non-free
-          deb [arch=amd64,mips64el] http://security.debian.org/debian-security bullseye-security main contrib non-free
+          deb [arch=amd64,mips64el] http://deb.debian.org/debian bookworm main contrib non-free non-free-firmware
+          deb [arch=amd64,mips64el] http://deb.debian.org/debian bookworm-updates main contrib non-free non-free-firmware
+          deb [arch=amd64,mips64el] http://security.debian.org/debian-security bookworm-security main contrib non-free non-free-firmware
           EOF
           
           # 4. 更新索引并验证 (这一步必须看到 mips64el Packages 下载)
           apt-get update
           
-          # 5. 安装关键的基础交叉编译工具
+          # 5. 安装基础依赖
           DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends \
             curl ca-certificates git build-essential pkg-config \
             crossbuild-essential-mips64el
           
-          # 6. 安装图形界面和数据库相关的 mips64el 依赖库
-          # 这里分步安装以便观察具体报错
+          # 6. 验证包是否存在于缓存
           apt-cache policy libgtk-3-dev:mips64el
+          
+          # 7. 安装正式交叉编译依赖
           DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends \
-            libgtk-3-dev:mips64el \
-            libwebkit2gtk-4.0-dev:mips64el \
-            unixodbc-dev:mips64el
+            libgtk-3-dev:mips64el libwebkit2gtk-4.0-dev:mips64el unixodbc-dev:mips64el
             
       - uses: actions/checkout@v4
       
