@@ -60,9 +60,7 @@ jobs:
           apt-get update
           DEBIAN_FRONTEND=noninteractive apt-get install -y curl git ca-certificates dpkg-dev tar gzip
           dpkg --add-architecture arm64
-          # Update existing sources to be amd64 only to prevent conflicts
           sed -i 's/^deb /deb [arch=amd64] /g' /etc/apt/sources.list
-          # Add arm64 ports specifically for Focal (Ubuntu 20.04)
           echo "deb [arch=arm64] http://ports.ubuntu.com/ubuntu-ports focal main restricted universe multiverse" > /etc/apt/sources.list.d/arm64.list
           echo "deb [arch=arm64] http://ports.ubuntu.com/ubuntu-ports focal-updates main restricted universe multiverse" >> /etc/apt/sources.list.d/arm64.list
           echo "deb [arch=arm64] http://ports.ubuntu.com/ubuntu-ports focal-security main restricted universe multiverse" >> /etc/apt/sources.list.d/arm64.list
@@ -110,3 +108,62 @@ jobs:
         with:
           name: EsSpectre-Kylin-linux-arm64
           path: gui/build/bin/EsSpectre_Kylin_arm64
+
+  build-mips64el:
+    name: Build Linux/mips64el (Kylin Loongson)
+    runs-on: ubuntu-latest
+    container:
+      image: ubuntu:20.04
+    steps:
+      - name: Install Cross-Build Dependencies
+        run: |
+          apt-get update
+          DEBIAN_FRONTEND=noninteractive apt-get install -y curl git ca-certificates dpkg-dev tar gzip gnupg2
+          dpkg --add-architecture mips64el
+          sed -i 's/^deb /deb [arch=amd64] /g' /etc/apt/sources.list
+          echo "deb [arch=mips64el] http://deb.debian.org/debian buster main" > /etc/apt/sources.list.d/mips64el.list
+          apt-key adv --keyserver keyserver.ubuntu.com --recv-keys 112695A0E569B321 04EE7237B7D453EC 648ACFD622F3D138 || true
+          apt-get update
+          DEBIAN_FRONTEND=noninteractive apt-get install -y \
+            gcc-mips64el-linux-gnuabi64 g++-mips64el-linux-gnuabi64 pkg-config \
+            libgtk-3-dev:mips64el libwebkit2gtk-4.0-dev:mips64el unixodbc-dev:mips64el
+            
+      - uses: actions/checkout@v4
+      
+      - name: Setup Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: '1.21'
+          cache: true
+          
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 18
+          
+      - name: Build Frontend Natively
+        run: |
+          cd gui/frontend
+          npm install
+          npm run build
+          
+      - name: Build with Wails (Native Cross-Compile to MIPS64EL)
+        run: |
+          go install github.com/wailsapp/wails/v2/cmd/wails@latest
+          export PATH=$PATH:$(go env GOPATH)/bin
+          export CC=mips64el-linux-gnuabi64-gcc
+          export CXX=mips64el-linux-gnuabi64-g++
+          export CGO_ENABLED=1
+          export GOOS=linux
+          export GOARCH=mips64le
+          export PKG_CONFIG_PATH=/usr/lib/mips64el-linux-gnu/pkgconfig:/usr/share/pkgconfig
+          export PKG_CONFIG_SYSROOT_DIR=/
+          cd gui
+          wails build -platform linux/mips64le -clean -s -skipbindings
+          mv build/bin/gui build/bin/EsSpectre_Kylin_mips64el || true
+
+      - name: Upload Artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: EsSpectre-Kylin-linux-mips64el
+          path: gui/build/bin/EsSpectre_Kylin_mips64el
