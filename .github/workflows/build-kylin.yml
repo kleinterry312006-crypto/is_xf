@@ -5,6 +5,10 @@ on:
     branches: [ main, master ]
   workflow_dispatch:
 
+env:
+  # 解决 GitHub Actions 对 Node.js 20 弃用的警告
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
+
 jobs:
   build-amd64:
     name: Build Linux/amd64 (x86_64)
@@ -228,17 +232,18 @@ jobs:
           # 自动寻找并重命名产物（极致容错）
           if [ ! -f build/bin/EsSpectre_Kylin_mips64el ]; then
             echo "Searching for any generated binary..."
-            # 找到 build/bin 目录下最新生成的非文件夹、非空文件，并移动它
-            TARGET_FILE=$(find build/bin/ -type f -not -name "*.res" -not -name "*.syso" | head -n 1)
+            # 找到 build/bin 目录下所有的常规文件，排除资源和系统文件
+            TARGET_FILE=$(find build/bin/ -maxdepth 2 -type f -not -name "*.res" -not -name "*.syso" | grep -v "EsSpectre_Kylin_mips64el" | head -n 1)
             if [ -n "$TARGET_FILE" ]; then
+              echo "Moving discovered binary: $TARGET_FILE"
               cp "$TARGET_FILE" build/bin/EsSpectre_Kylin_mips64el
             else
               echo "ERROR: No binary was generated!" && exit 1
             fi
           fi
           
-          # 最终检查必选产物是否存在，不存在则报错
-          [ -f build/bin/EsSpectre_Kylin_mips64el ] || { echo "Final check failed: Binary missing"; exit 1; }
+          # 最终检查产物，确认其权限和路径
+          ls -l build/bin/EsSpectre_Kylin_mips64el
 
       - name: Upload Artifact
         uses: actions/upload-artifact@v4
