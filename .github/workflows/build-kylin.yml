@@ -142,36 +142,38 @@ jobs:
       - name: Setup Multi-arch and Dependencies
         run: |
           set -ex
-          # 1. 彻底清除干扰：移除所有预置的 .list 文件（有些镜像会锁定 arch=amd64）
-          find /etc/apt/ -name "*.list" -delete
+          # 1. 彻底暴力清理现场：重置 APT 配置并清除所有预置缓存/架构锁
+          rm -rf /etc/apt/sources.list.d/*
+          rm -rf /etc/apt/apt.conf.d/*
           rm -rf /var/lib/apt/lists/*
           
-          # 2. 注入多架构配置
+          # 2. 从零开始构建 APT 配置文件
+          # 设置基本配置，强制开启多架构支持
           dpkg --add-architecture mips64el
-          mkdir -p /etc/apt/apt.conf.d/
-          echo 'APT::Architectures { "amd64"; "mips64el"; };' > /etc/apt/apt.conf.d/99arch
+          echo 'APT::Architectures { "amd64"; "mips64el"; };' > /etc/apt/apt.conf.d/01multiarch
           
-          # 3. 构造完美的双架构源，显式使用 [arch=...] 标签强制要求索引
+          # 3. 构造完美的、不带限制的 sources.list
           cat <<EOF > /etc/apt/sources.list
           deb [arch=amd64,mips64el] http://deb.debian.org/debian bullseye main contrib non-free
           deb [arch=amd64,mips64el] http://deb.debian.org/debian bullseye-updates main contrib non-free
           deb [arch=amd64,mips64el] http://security.debian.org/debian-security bullseye-security main contrib non-free
           EOF
           
-          # 4. 更新索引并验证 (必须看到 mips64el Packages 下载)
+          # 4. 更新索引并验证 (这一步必须看到 mips64el Packages 下载)
           apt-get update
           
-          # 5. 安装基础依赖
+          # 5. 安装关键的基础交叉编译工具
           DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends \
-            curl ca-certificates git build-essential pkg-config
+            curl ca-certificates git build-essential pkg-config \
+            crossbuild-essential-mips64el
           
-          # 6. 验证包是否存在于缓存
+          # 6. 安装图形界面和数据库相关的 mips64el 依赖库
+          # 这里分步安装以便观察具体报错
           apt-cache policy libgtk-3-dev:mips64el
-          
-          # 7. 安装正式交叉编译依赖
           DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends \
-            crossbuild-essential-mips64el \
-            libgtk-3-dev:mips64el libwebkit2gtk-4.0-dev:mips64el unixodbc-dev:mips64el
+            libgtk-3-dev:mips64el \
+            libwebkit2gtk-4.0-dev:mips64el \
+            unixodbc-dev:mips64el
             
       - uses: actions/checkout@v4
       
