@@ -227,7 +227,8 @@ jobs:
           
           echo "🚀 Wails does not support MIPS natively, using Go native build..."
           # 直接使用 Go 编译，Wails 2.0 默认支持 embed
-          go build -ldflags "-s -w" -tags production -o build/bin/EsSpectre_Kylin_mips64el .
+          # 禁用 VCS 信息嵌入以防止在容器中出现 git status 访问错误
+          go build -buildvcs=false -ldflags "-s -w" -tags production -o build/bin/EsSpectre_Kylin_mips64el .
           
           # 验证结果
           ls -l build/bin/EsSpectre_Kylin_mips64el
