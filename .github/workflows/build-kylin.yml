@@ -1,8 +1,5 @@
 name: Build for Kylin OS (Linux)
 
-env:
-  TRIGGER_PULSE: 1
-
 on:
   push:
     branches: [ main, master ]
@@ -11,113 +8,105 @@ on:
 jobs:
   build-amd64:
     name: Build Linux/amd64 (x86_64)
-    runs-on: ubuntu-20.04
+    runs-on: ubuntu-latest
+    container:
+      image: ubuntu:20.04
     steps:
+      - name: Install System Dependencies
+        run: |
+          apt-get update
+          DEBIAN_FRONTEND=noninteractive apt-get install -y \
+            build-essential libgtk-3-dev libwebkit2gtk-4.0-dev \
+            pkg-config unixodbc-dev curl git ca-certificates tar gzip
+            
       - uses: actions/checkout@v4
-
+      
       - name: Setup Go
         uses: actions/setup-go@v5
         with:
           go-version: '1.21'
           cache: true
-
+          
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
           node-version: 18
-
-      - name: Install System Dependencies for amd64
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y libgtk-3-dev libwebkit2gtk-4.0-dev build-essential pkg-config unixodbc-dev
-
-      - name: Install Wails
-        run: go install github.com/wailsapp/wails/v2/cmd/wails@latest
-
+          
       - name: Build with Wails
-        working-directory: ./gui
-        run: wails build -platform linux/amd64 -clean
-
+        run: |
+          go install github.com/wailsapp/wails/v2/cmd/wails@latest
+          export PATH=$PATH:$(go env GOPATH)/bin
+          cd gui
+          wails build -platform linux/amd64 -clean
+          
       - name: Rename Artifact
-        working-directory: ./gui/build/bin
-        run: mv gui EsSpectre_Kylin_amd64
-
+        run: |
+          mv gui/build/bin/gui gui/build/bin/EsSpectre_Kylin_amd64
+          
       - name: Upload Artifact
         uses: actions/upload-artifact@v4
         with:
           name: EsSpectre-Kylin-linux-amd64
-          path: ./gui/build/bin/EsSpectre_Kylin_amd64
+          path: gui/build/bin/EsSpectre_Kylin_amd64
 
   build-arm64:
     name: Build Linux/arm64 (Kylin ARM)
-    runs-on: ubuntu-20.04
+    runs-on: ubuntu-latest
+    container:
+      image: ubuntu:20.04
     steps:
+      - name: Install Cross-Build Dependencies
+        run: |
+          apt-get update
+          DEBIAN_FRONTEND=noninteractive apt-get install -y curl git ca-certificates dpkg-dev tar gzip
+          dpkg --add-architecture arm64
+          # Update existing sources to be amd64 only to prevent conflicts
+          sed -i 's/^deb /deb [arch=amd64] /g' /etc/apt/sources.list
+          # Add arm64 ports specifically for Focal (Ubuntu 20.04)
+          echo "deb [arch=arm64] http://ports.ubuntu.com/ubuntu-ports focal main restricted universe multiverse" > /etc/apt/sources.list.d/arm64.list
+          echo "deb [arch=arm64] http://ports.ubuntu.com/ubuntu-ports focal-updates main restricted universe multiverse" >> /etc/apt/sources.list.d/arm64.list
+          echo "deb [arch=arm64] http://ports.ubuntu.com/ubuntu-ports focal-security main restricted universe multiverse" >> /etc/apt/sources.list.d/arm64.list
+          apt-get update
+          DEBIAN_FRONTEND=noninteractive apt-get install -y \
+            gcc-aarch64-linux-gnu g++-aarch64-linux-gnu pkg-config \
+            libgtk-3-dev:arm64 libwebkit2gtk-4.0-dev:arm64 unixodbc-dev:arm64
+            
       - uses: actions/checkout@v4
-
+      
       - name: Setup Go
         uses: actions/setup-go@v5
         with:
           go-version: '1.21'
           cache: true
-
+          
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
           node-version: 18
-
-      - name: Add ARM64 Architecture and Repositories
-        run: |
-          # 开启多架构支持（允许给 x86 机器安装 arm64 的包）
-          sudo dpkg --add-architecture arm64
-          # 将原有的 x86 镜像源限制为只针对 amd64 和 i386，防止冲突
-          sudo sed -i -e 's/^deb http/deb [arch=amd64,i386] http/g' /etc/apt/sources.list
-          sudo sed -i -e 's/^deb mirror/deb [arch=amd64,i386] mirror/g' /etc/apt/sources.list
           
-          # 写入官方 ARM64 专属镜像源 (focal 对应 ubuntu 20.04，保证编译出的二进制依赖很老的 GLIBC)
-          sudo tee /etc/apt/sources.list.d/arm64.list <<EOF
-          deb [arch=arm64] http://ports.ubuntu.com/ubuntu-ports focal main restricted universe multiverse
-          deb [arch=arm64] http://ports.ubuntu.com/ubuntu-ports focal-updates main restricted universe multiverse
-          deb [arch=arm64] http://ports.ubuntu.com/ubuntu-ports focal-security main restricted universe multiverse
-          EOF
-          
-          sudo apt-get update -y
-
-      - name: Install Cross-Compiler and ARM64 Libraries
-        run: |
-          # 1. 安装能在 x86 上运行但生成 ARM64 代码的 C++ 交叉编译器
-          sudo apt-get install -y gcc-aarch64-linux-gnu g++-aarch64-linux-gnu pkg-config
-          # 2. 安装目标架构（ARM64）的图形界面依赖 (Webkit/GTK) 以及 ODBC 数据库驱动依赖
-          sudo DEBIAN_FRONTEND=noninteractive apt-get install -y libgtk-3-dev:arm64 libwebkit2gtk-4.0-dev:arm64 unixodbc-dev:arm64
-
-      - name: Install Wails
-        run: go install github.com/wailsapp/wails/v2/cmd/wails@latest
-
       - name: Build Frontend Natively
-        working-directory: ./gui/frontend
         run: |
+          cd gui/frontend
           npm install
           npm run build
-
+          
       - name: Build with Wails (Native Cross-Compile to ARM64)
-        working-directory: ./gui
         run: |
-          # 最核心的交叉编译环境变量
+          go install github.com/wailsapp/wails/v2/cmd/wails@latest
+          export PATH=$PATH:$(go env GOPATH)/bin
           export CC=aarch64-linux-gnu-gcc
           export CXX=aarch64-linux-gnu-g++
           export CGO_ENABLED=1
           export GOOS=linux
           export GOARCH=arm64
-          
-          # 告诉 pkg-config 去寻找 arm64 的库文件路径，而不是宿主机的 x86 库
           export PKG_CONFIG_PATH=/usr/lib/aarch64-linux-gnu/pkgconfig:/usr/share/pkgconfig
           export PKG_CONFIG_SYSROOT_DIR=/
-          
-          # 开启全速原生编译 (跳过前端因为上面已经打好)
+          cd gui
           wails build -platform linux/arm64 -clean -s -skipbindings
-          mv build/bin/gui build/bin/EsSpectre_Kylin_arm64
+          mv build/bin/gui build/bin/EsSpectre_Kylin_arm64 || true
 
       - name: Upload Artifact
         uses: actions/upload-artifact@v4
         with:
           name: EsSpectre-Kylin-linux-arm64
-          path: ./gui/build/bin/EsSpectre_Kylin_arm64
+          path: gui/build/bin/EsSpectre_Kylin_arm64
