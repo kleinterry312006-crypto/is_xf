@@ -143,8 +143,12 @@ jobs:
       - name: Setup Multi-arch and Dependencies
         run: |
           dpkg --add-architecture mips64el
+          # 强制重写 sources.list 以移除任何可能存在的 [arch=amd64] 限制
+          echo "deb http://deb.debian.org/debian bullseye main contrib non-free" > /etc/apt/sources.list
+          echo "deb http://deb.debian.org/debian-security bullseye-security main contrib non-free" >> /etc/apt/sources.list
+          echo "deb http://deb.debian.org/debian bullseye-updates main contrib non-free" >> /etc/apt/sources.list
           apt-get update
-          DEBIAN_FRONTEND=noninteractive apt-get install -y \
+          DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends \
             curl git ca-certificates tar gzip gnupg2 build-essential pkg-config \
             crossbuild-essential-mips64el \
             libgtk-3-dev:mips64el libwebkit2gtk-4.0-dev:mips64el unixodbc-dev:mips64el
