@@ -42,13 +42,19 @@ jobs:
         with:
           node-version: 18
           
+      - name: Build Frontend Natively
+        run: |
+          cd gui/frontend
+          npm install
+          npm run build
+          
       - name: Build with Wails
         run: |
           export PATH=$PATH:$(go env GOPATH)/bin
           # 动态将 go.mod 版本从 1.23 降至 1.21，防止编译器校验报错
           sed -i 's/go 1.23/go 1.21/g' gui/go.mod
           cd gui
-          wails build -platform linux/amd64 -clean -ldflags "-s -w"
+          wails build -platform linux/amd64 -clean -s -skipbindings -ldflags "-s -w"
           
       - name: Rename Artifact
         run: |
@@ -116,11 +122,12 @@ jobs:
           export GOOS=linux
           export GOARCH=arm64
           export PKG_CONFIG_PATH=/usr/lib/aarch64-linux-gnu/pkgconfig:/usr/share/pkgconfig
+          export PKG_CONFIG_LIBDIR=/usr/lib/aarch64-linux-gnu/pkgconfig
           export PKG_CONFIG_SYSROOT_DIR=/
           sed -i 's/go 1.23/go 1.21/g' gui/go.mod
           cd gui
           wails build -platform linux/arm64 -clean -s -skipbindings -ldflags "-s -w"
-          mv build/bin/gui build/bin/EsSpectre_Kylin_arm64 || true
+          mv build/bin/gui build/bin/EsSpectre_Kylin_arm64 || cp build/bin/gui_linux_arm64 build/bin/EsSpectre_Kylin_arm64 || true
 
       - name: Upload Artifact
         uses: actions/upload-artifact@v4
@@ -185,12 +192,17 @@ jobs:
           export CGO_ENABLED=1
           export GOOS=linux
           export GOARCH=mips64le
-          export PKG_CONFIG_PATH=/usr/lib/mips64el-linux-gnu/pkgconfig:/usr/share/pkgconfig
+          export PKG_CONFIG_PATH=/usr/lib/mips64el-linux-gnuabi64/pkgconfig:/usr/share/pkgconfig
+          export PKG_CONFIG_LIBDIR=/usr/lib/mips64el-linux-gnuabi64/pkgconfig
           export PKG_CONFIG_SYSROOT_DIR=/
           sed -i 's/go 1.23/go 1.21/g' gui/go.mod
           cd gui
-          wails build -platform linux/mips64le -clean -s -skipbindings -ldflags "-s -w"
-          mv build/bin/gui build/bin/EsSpectre_Kylin_mips64el || true
+          # 如果 wails 不支持 linux/mips64le，尝试直接使用 go build
+          wails build -platform linux/mips64le -clean -s -skipbindings -ldflags "-s -w" || {
+             echo "Wails build failed, falling back to direct go build..."
+             go build -ldflags "-s -w" -o build/bin/EsSpectre_Kylin_mips64el main.go
+          }
+          if [ -f build/bin/gui ]; then mv build/bin/gui build/bin/EsSpectre_Kylin_mips64el; fi
 
       - name: Upload Artifact
         uses: actions/upload-artifact@v4
