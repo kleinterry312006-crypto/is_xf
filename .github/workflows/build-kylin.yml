@@ -141,24 +141,25 @@ jobs:
     steps:
       - name: Setup Multi-arch and Dependencies
         run: |
-          # 彻底清理可能存在的架构限制和缓存
+          set -ex
+          # 彻底清理并强制指定架构配置
           rm -rf /var/lib/apt/lists/*
-          rm -rf /etc/apt/sources.list.d/*
-          
-          # 添加架构
           dpkg --add-architecture mips64el
+          echo 'Apt::Architectures {"amd64"; "mips64el";};' > /etc/apt/apt.conf.d/99arch
           
-          # 显式指定双架构源，强制 apt 必须拉取 mips64el 的索引
+          # 使用官方主镜像源，确保架构完整
           cat <<EOF > /etc/apt/sources.list
-          deb [arch=amd64,mips64el] http://deb.debian.org/debian bullseye main contrib non-free
-          deb [arch=amd64,mips64el] http://deb.debian.org/debian-security bullseye-security main contrib non-free
-          deb [arch=amd64,mips64el] http://deb.debian.org/debian bullseye-updates main contrib non-free
+          deb http://ftp.debian.org/debian bullseye main contrib non-free
+          deb http://ftp.debian.org/debian-security bullseye-security main contrib non-free
+          deb http://ftp.debian.org/debian bullseye-updates main contrib non-free
           EOF
           
+          # 更新索引
           apt-get update
           
-          # 调试列出索引文件，确保 mips64el 已经存在
-          ls -R /var/lib/apt/lists/ | grep mips64el || { echo "CRITICAL: mips64el indices still missing!"; exit 1; }
+          # 验证架构和索引
+          dpkg --print-foreign-architectures
+          apt-cache policy libgtk-3-dev:mips64el || { echo "ERROR: mips64el packages not found in cache"; exit 1; }
           
           DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends \
             curl git ca-certificates tar gzip gnupg2 build-essential pkg-config \
@@ -210,8 +211,11 @@ jobs:
              echo "Wails build failed, falling back to direct go build..."
              go build -ldflags "-s -w" -o build/bin/EsSpectre_Kylin_mips64el main.go
           }
-          if [ -f build/bin/gui ]; then mv build/bin/gui build/bin/EsSpectre_Kylin_mips64el; fi
-          if [ -f build/bin/gui_linux_mips64le ]; then mv build/bin/gui_linux_mips64le build/bin/EsSpectre_Kylin_mips64el; fi
+          # 自动寻找并重命名产物（增加容错）
+          if [ ! -f build/bin/EsSpectre_Kylin_mips64el ]; then
+            mv build/bin/gui build/bin/EsSpectre_Kylin_mips64el || \
+            mv build/bin/gui_linux_mips64le build/bin/EsSpectre_Kylin_mips64el || true
+          fi
 
       - name: Upload Artifact
         uses: actions/upload-artifact@v4
